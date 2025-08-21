@@ -2,17 +2,17 @@
 
 A fast, reliable REST API for sending emails built with Rust and Axum. Send emails via JSON API with support for both plain text and HTML content.
 
-## ✨ Features
+##  Features
 
-- 🌐 **REST API**: Simple JSON endpoints for sending emails
-- 📧 **Multi-format Support**: Plain text and HTML emails
-- 🔧 **Configurable**: Environment-based configuration
-- 🚀 **Fast**: Built with Rust and Axum for high performance
-- 🛡️ **Validation**: Email format and content validation
-- 🌍 **CORS Enabled**: Ready for web applications
-- 📊 **Health Check**: Built-in health monitoring endpoint
+-  **REST API**: Simple JSON endpoints for sending emails
+-  **Multi-format Support**: Plain text and HTML emails
+-  **Configurable**: Environment-based configuration
+-  **Fast**: Built with Rust and Axum for high performance
+-  **Validation**: Email format and content validation
+-  **CORS Enabled**: Ready for web applications
+-  **Health Check**: Built-in health monitoring endpoint
 
-## 🛠️ Setup
+## Setup
 
 ### 1. Clone and Build
 
@@ -47,7 +47,7 @@ For Gmail, you'll need an **App Password**:
 3. Generate a new app password for "Mail"
 4. Use this password in the `APP_PASSWORD` environment variable
 
-## 🚀 Running the Server
+## Running the Server
 
 ```bash
 cargo run
@@ -55,7 +55,7 @@ cargo run
 
 The server will start on `http://0.0.0.0:6969` (or your configured PORT).
 
-## 📚 API Documentation
+## API Documentation
 
 ### Health Check
 
@@ -112,7 +112,7 @@ curl http://localhost:6969/
 }
 ```
 
-## 🧪 Testing Examples
+## Testing Examples
 
 ### Plain Text Email
 
@@ -174,7 +174,7 @@ response = requests.post('http://localhost:6969/send-email', json={
 print(response.json())
 ```
 
-## 🔧 Configuration Options
+## Configuration Options
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
@@ -184,20 +184,20 @@ print(response.json())
 | `SMTP_PORT` | `587` | SMTP server port |
 | `PORT` | `6969` | API server port |
 
-## 🛡️ Error Handling
+## Error Handling
 
 The API provides detailed error messages for various scenarios:
 
 - **400 Bad Request**: Invalid email format, empty subject/body
 - **500 Internal Server Error**: SMTP connection issues, authentication failures
 
-## 🚦 Status Codes
+## Status Codes
 
 - `200` - Email sent successfully
 - `400` - Bad request (validation errors)
 - `500` - Internal server error (SMTP issues)
 
-## 🔜 Future Enhancements
+## Future Enhancements
 
 - [ ] Email templates with variables
 - [ ] Bulk email sending
@@ -207,10 +207,6 @@ The API provides detailed error messages for various scenarios:
 - [ ] Authentication/API keys
 - [ ] Multiple email providers
 - [ ] Email history/logging
-
-## 📝 License
-
-MIT License - feel free to use this in your projects!
 
 ---
 
