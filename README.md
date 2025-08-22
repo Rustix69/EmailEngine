@@ -1,4 +1,4 @@
-# 🚀 Rust Mailer API
+# Rust Mailer API
 
 A fast, reliable REST API for sending emails built with Rust and Axum. Send emails via JSON API with support for both plain text and HTML content.
 
@@ -6,6 +6,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 
 -  **REST API**: Simple JSON endpoints for sending emails
 -  **Multi-format Support**: Plain text and HTML emails
+-  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Configurable**: Environment-based configuration
 -  **Fast**: Built with Rust and Axum for high performance
 -  **Validation**: Email format and content validation
@@ -74,7 +75,7 @@ curl http://localhost:6969/
 }
 ```
 
-### Send Email
+### Send Single Email
 
 **POST** `/send-email`
 
@@ -112,9 +113,54 @@ curl http://localhost:6969/
 }
 ```
 
+### Send Bulk Emails
+
+**POST** `/send-bulk-email`
+
+**Request Body:**
+```json
+{
+  "recipients": [
+    "user1@example.com",
+    "user2@example.com",
+    "user3@example.com"
+  ],
+  "subject": "Bulk Email Test",
+  "body": "This is a bulk email message sent to multiple recipients.",
+  "html": "<h1>Bulk Email</h1><p>This is a <strong>bulk email</strong> message.</p>"
+}
+```
+
+**Fields:**
+- `recipients` (required): Array of recipient email addresses
+- `subject` (required): Email subject
+- `body` (required): Plain text content
+- `html` (optional): HTML content for rich emails
+
+**Success Response (200/206):**
+```json
+{
+  "total_emails": 3,
+  "successful": 2,
+  "failed": 1,
+  "results": [
+    {
+      "email": "user1@example.com",
+      "success": true,
+      "message": "Email sent successfully"
+    },
+    {
+      "email": "user2@example.com",
+      "success": false,
+      "message": "SMTP connection error"
+    }
+  ]
+}
+```
+
 ## Testing Examples
 
-### Plain Text Email
+### Plain Text Single Email
 
 ```bash
 curl -X POST http://localhost:6969/send-email \
@@ -123,6 +169,22 @@ curl -X POST http://localhost:6969/send-email \
     "to": "test@example.com",
     "subject": "Test Email",
     "body": "This is a test message from Rust Mailer API!"
+  }'
+```
+
+### Bulk Email
+
+```bash
+curl -X POST http://localhost:6969/send-bulk-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipients": [
+      "user1@example.com",
+      "user2@example.com",
+      "user3@example.com"
+    ],
+    "subject": "Bulk Email Test",
+    "body": "This is a bulk email message sent to multiple recipients."
   }'
 ```
 
@@ -194,13 +256,13 @@ The API provides detailed error messages for various scenarios:
 ## Status Codes
 
 - `200` - Email sent successfully
+- `206` - Partial success in bulk email sending
 - `400` - Bad request (validation errors)
 - `500` - Internal server error (SMTP issues)
 
 ## Future Enhancements
 
-- [ ] Email templates with variables
-- [ ] Bulk email sending
+- [x] Bulk email sending
 - [ ] Email scheduling
 - [ ] Delivery tracking
 - [ ] Rate limiting
@@ -210,4 +272,4 @@ The API provides detailed error messages for various scenarios:
 
 ---
 
-**Happy Emailing! 📧** 
+**Happy Emailing!** 
