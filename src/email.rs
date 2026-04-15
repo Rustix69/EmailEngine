@@ -2,14 +2,16 @@ use crate::config::Config;
 use crate::api::EmailResult;
 use anyhow::Result;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
+use lettre::message::Mailbox;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use tokio::time::{timeout, Duration};
 use std::sync::Arc;
 
 pub async fn send_email(cfg: &Config, to: &str, subject: &str, body: &str, html: Option<&str>) -> Result<()> {
+    let sender = Mailbox::new(Some(cfg.sender_name.clone()), cfg.email.parse()?);
     let builder = Message::builder()
-        .from(cfg.email.parse()?)
+        .from(sender)
         .to(to.parse()?)
         .subject(subject);
 
