@@ -21,6 +21,8 @@ async fn main() -> Result<()> {
         .route("/", get(api::health_check))
         .route("/send-email", post(api::send_email_handler))
         .route("/send-bulk-email", post(api::send_bulk_email_handler))
+        .route("/send-batch", post(api::send_batch_handler))
+        .route("/sent", get(api::sent_handler))
         .layer(CorsLayer::permissive())
         .with_state(cfg);
 

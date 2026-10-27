@@ -7,6 +7,8 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **REST API**: Simple JSON endpoints for sending emails
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
+-  **Personalised Batches**: Send a different subject and body to each recipient in one call
+-  **Duplicate Protection**: A persistent sent log guarantees nobody is emailed twice
 -  **Configurable**: Environment-based configuration
 -  **Fast**: Built with Rust and Axum for high performance
 -  **Validation**: Email format and content validation
@@ -158,6 +160,79 @@ curl http://localhost:6969/
 }
 ```
 
+### Send a Personalised Batch
+
+**POST** `/send-batch`
+
+**Why it exists:** `/send-bulk-email` sends the *same* subject and body to everyone. When every recipient needs their own message (their name, their company), you would have to make one `/send-email` call per person and handle pacing and retries yourself. `/send-batch` takes the whole list in one request, sends the messages one after another with a short pause between them (so the SMTP provider doesn't flag a burst of connections), and skips anyone already in the sent log, so a retry or a double click can't email the same person again.
+
+**Request Body:**
+```json
+{
+  "messages": [
+    {
+      "to": "alice@example.com",
+      "subject": "Hi Alice",
+      "body": "Plain text version for Alice.",
+      "html": "<p>HTML version for <strong>Alice</strong>.</p>"
+    },
+    {
+      "to": "bob@example.com",
+      "subject": "Hi Bob",
+      "body": "Plain text version for Bob."
+    }
+  ]
+}
+```
+
+**Fields:**
+- `messages` (required): 1 to 50 messages per request
+  - `to` (required): Recipient email address
+  - `subject` (required): Email subject
+  - `body` (required): Plain text content
+  - `html` (optional): HTML content for rich emails
+
+**Success Response (200):** same shape as `/send-bulk-email`, with one result per message, in the same order as the request:
+```json
+{
+  "total_emails": 2,
+  "successful": 2,
+  "failed": 0,
+  "results": [
+    { "email": "alice@example.com", "success": true, "message": "Email sent successfully" },
+    { "email": "bob@example.com", "success": true, "message": "Already sent earlier, skipped" }
+  ]
+}
+```
+
+An address that is already in the sent log is **not** sent again. It comes back as `success: true` with the message `Already sent earlier, skipped`, so a client can treat it as done. Invalid addresses and empty subjects or bodies come back as `success: false`. A request with no messages, or more than 50, returns `400`.
+
+Only one batch runs at a time. A second request waits for the first to finish, which is what stops two overlapping requests from sending the same address twice.
+
+### Sent Log
+
+**GET** `/sent`
+
+**Why it exists:** the sent log lives on the server, so it is the one place that remembers who has been emailed, even if a client restarts or clears its own storage. This endpoint lets a client read that list (for example to hide people already contacted before it builds a batch). It is read-only and sends nothing.
+
+```bash
+curl http://localhost:6969/sent
+```
+
+**Response:**
+```json
+{
+  "addresses": ["alice@example.com", "bob@example.com"]
+}
+```
+
+**How the log works:**
+- The server appends one line to `sent_log.txt` (next to where you run it) after each successful `/send-batch` send: `address<TAB>unix-time`.
+- Only the first word of each line is read, so you can add an address by hand (optionally followed by any note) to stop it ever being emailed. Addresses are compared in lowercase.
+- Failed sends are not logged, so they can be retried.
+- Only `/send-batch` uses the log. `/send-email` and `/send-bulk-email` behave as before.
+- The file lists people you emailed, so it is git-ignored. Back it up if you care about it; deleting it removes the protection.
+
 ## Testing Examples
 
 ### Plain Text Single Email
@@ -187,6 +262,21 @@ curl -X POST http://localhost:6969/send-bulk-email \
     "body": "This is a bulk email message sent to multiple recipients."
   }'
 ```
+
+### Personalised Batch
+
+```bash
+curl -X POST http://localhost:6969/send-batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "to": "alice@example.com", "subject": "Hi Alice", "body": "Hello Alice!" },
+      { "to": "bob@example.com", "subject": "Hi Bob", "body": "Hello Bob!" }
+    ]
+  }'
+```
+
+Run it twice and the second response says `Already sent earlier, skipped` for both, without sending anything.
 
 ### HTML Email
 
@@ -250,12 +340,12 @@ print(response.json())
 
 The API provides detailed error messages for various scenarios:
 
-- **400 Bad Request**: Invalid email format, empty subject/body
+- **400 Bad Request**: Invalid email format, empty subject/body, or an empty / oversized `/send-batch` request
 - **500 Internal Server Error**: SMTP connection issues, authentication failures
 
 ## Status Codes
 
-- `200` - Email sent successfully
+- `200` - Email sent successfully (for `/send-batch`, check each result)
 - `206` - Partial success in bulk email sending
 - `400` - Bad request (validation errors)
 - `500` - Internal server error (SMTP issues)
@@ -263,12 +353,14 @@ The API provides detailed error messages for various scenarios:
 ## Future Enhancements
 
 - [x] Bulk email sending
+- [x] Per-recipient batch sending
+- [x] Duplicate protection with a sent log
 - [ ] Email scheduling
 - [ ] Delivery tracking
 - [ ] Rate limiting
 - [ ] Authentication/API keys
 - [ ] Multiple email providers
-- [ ] Email history/logging
+- [ ] Full email history (the sent log only records addresses)
 
 ---
 

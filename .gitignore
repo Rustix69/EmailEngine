@@ -1,3 +1,5 @@
 /target
 .env
 .env.local
+
+sent_log.txt

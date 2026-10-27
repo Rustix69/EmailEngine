@@ -7,6 +7,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Most messages one /send-batch call accepts
+pub const MAX_BATCH: usize = 50;
+
 #[derive(Deserialize)]
 pub struct EmailRequest {
     pub to: String,
@@ -21,6 +24,19 @@ pub struct BulkEmailRequest {
     pub subject: String,
     pub body: String,
     pub html: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct OutgoingMessage {
+    pub to: String,
+    pub subject: String,
+    pub body: String,
+    pub html: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct BatchEmailRequest {
+    pub messages: Vec<OutgoingMessage>,
 }
 
 #[derive(Serialize)]
@@ -58,6 +74,18 @@ pub async fn health_check() -> Json<HealthResponse> {
         service: "rust-mailer-api".to_string(),
         version: "0.1.0".to_string(),
     })
+}
+
+#[derive(Serialize)]
+pub struct SentResponse {
+    pub addresses: Vec<String>,
+}
+
+/// Every address in the sent log, so the frontend can show what is already done (read-only, sends nothing)
+pub async fn sent_handler() -> Json<SentResponse> {
+    let mut addresses: Vec<String> = email::load_sent().into_iter().collect();
+    addresses.sort();
+    Json(SentResponse { addresses })
 }
 
 pub async fn send_email_handler(
@@ -228,7 +256,34 @@ pub async fn send_bulk_email_handler(
     }
 }
 
-fn is_valid_email(email: &str) -> bool {
+pub async fn send_batch_handler(
+    State(config): State<Arc<Config>>,
+    Json(request): Json<BatchEmailRequest>,
+) -> Result<Json<BulkEmailResponse>, (StatusCode, Json<BulkEmailResponse>)> {
+    if request.messages.is_empty() || request.messages.len() > MAX_BATCH {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BulkEmailResponse {
+                total_emails: request.messages.len(),
+                successful: 0,
+                failed: 0,
+                results: vec![],
+            }),
+        ));
+    }
+
+    let results = email::send_batch(&config, &request.messages).await;
+    let successful = results.iter().filter(|r| r.success).count();
+
+    Ok(Json(BulkEmailResponse {
+        total_emails: results.len(),
+        successful,
+        failed: results.len() - successful,
+        results,
+    }))
+}
+
+pub fn is_valid_email(email: &str) -> bool {
     // Basic email validation - you might want to use a more sophisticated library
     let email_regex = regex::Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap();
     email_regex.is_match(email)
