@@ -227,10 +227,10 @@ curl http://localhost:6969/sent
 ```
 
 **How the log works:**
-- The server appends one line to `sent_log.txt` (next to where you run it) after each successful `/send-batch` send: `address<TAB>unix-time`.
+- The server appends one line to `sent_log.txt` (next to where you run it) after each successful send, from **any** endpoint (`/send-email`, `/send-bulk-email` and `/send-batch`): `address<TAB>unix-time`. So the log is the complete list of everyone the server has emailed.
 - Only the first word of each line is read, so you can add an address by hand (optionally followed by any note) to stop it ever being emailed. Addresses are compared in lowercase.
 - Failed sends are not logged, so they can be retried.
-- Only `/send-batch` uses the log. `/send-email` and `/send-bulk-email` behave as before.
+- Only `/send-batch` *skips* addresses that are in the log. `/send-email` and `/send-bulk-email` always send what you ask (so you can still email someone again on purpose), but they are recorded too, and a later `/send-batch` will then skip that person.
 - The file lists people you emailed, so it is git-ignored. Back it up if you care about it; deleting it removes the protection.
 
 ## Testing Examples

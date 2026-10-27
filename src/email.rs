@@ -39,6 +39,8 @@ pub async fn send_email(cfg: &Config, to: &str, subject: &str, body: &str, html:
         .build();
 
     mailer.send(email).await?;
+    // Every endpoint sends through here, so the log lists every mail sent, however it was triggered
+    log_sent(to);
     println!("Email sent to {}", to);
     Ok(())
 }
@@ -116,7 +118,7 @@ pub async fn send_bulk_emails(
 /// Gap between messages so Gmail doesn't flag a burst of connections
 const SEND_GAP: Duration = Duration::from_millis(1500);
 
-/// One line per successful send: `address<TAB>unix time`. Old lines with just an address still work. Survives restarts and cleared browsers.
+/// One line per successful send, from any endpoint: `address<TAB>unix time`. Old lines with just an address still work. Survives restarts and cleared browsers.
 const SENT_LOG: &str = "sent_log.txt";
 
 /// Message returned for an address that is already in the log; the frontend treats it as "done, not resent"
@@ -137,11 +139,13 @@ fn log_sent(address: &str) {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
+    // One write per line, so concurrent sends (/send-bulk-email) can't interleave
+    let line = format!("{}\t{}\n", address.to_lowercase(), now);
     let written = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(SENT_LOG)
-        .and_then(|mut f| writeln!(f, "{}\t{}", address.to_lowercase(), now));
+        .and_then(|mut f| f.write_all(line.as_bytes()));
     if let Err(e) = written {
         eprintln!("Could not record {} in {}: {}", address, SENT_LOG, e);
     }
@@ -191,7 +195,6 @@ pub async fn send_batch(cfg: &Arc<Config>, messages: &[OutgoingMessage]) -> Vec<
 
         results.push(match sent {
             Ok(Ok(_)) => {
-                log_sent(&m.to);
                 already.insert(m.to.to_lowercase());
                 EmailResult {
                     email: m.to.clone(),
