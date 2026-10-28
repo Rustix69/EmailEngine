@@ -8,6 +8,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Personalised Batches**: Send a different subject and body to each recipient in one call
+-  **Email Validation**: Check one address or up to 100 at once (syntax, domain, MX, disposable, role-based, typo hints) before you send
 -  **Scheduled Batches**: Queue a personalised batch to go out at a set time
 -  **Sent Log**: Every successful send is recorded, and you can email the same person again whenever you like
 -  **Configurable**: Environment-based configuration
@@ -22,7 +23,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 
 ```bash
 git clone <your-repo>
-cd rust-mailer
+cd EmailEngine
 cargo build --release
 ```
 
@@ -57,7 +58,7 @@ For Gmail, you'll need an **App Password**:
 cargo run
 ```
 
-The server will start on `http://0.0.0.0:6969` (or your configured PORT).
+The server will start on `http://localhost:6969` (or your configured PORT).
 
 ## API Documentation
 
@@ -209,6 +210,53 @@ curl http://localhost:6969/
 Invalid addresses and empty subjects or bodies come back as `success: false`. A request with no messages, or more than 50, returns `400`. Addresses already in the sent log are sent again like any other.
 
 Only one batch runs at a time. A second request waits for the first to finish.
+
+### Validate an Email
+
+**GET** `/validate-email?email=<address>`
+
+A thin wrapper around the public [rapid-email-verifier](https://rapid-email-verifier.fly.dev) service. It checks an address without sending anything, so you can clean a list before a campaign. The address is sent to that third-party service, which says it processes addresses in memory and does not store them.
+
+```bash
+curl "http://localhost:6969/validate-email?email=anirban@jurisiq.in"
+```
+
+**Response (200):**
+```json
+{
+  "email": "anirban@jurisiq.in",
+  "validations": {
+    "syntax": true,
+    "domain_exists": true,
+    "mx_records": true,
+    "mailbox_exists": true,
+    "is_disposable": false,
+    "is_role_based": false
+  },
+  "score": 100,
+  "status": "VALID"
+}
+```
+
+Optional fields appear when relevant: `aliasOf` (the canonical address, e.g. `user.name+tag@gmail.com` becomes `username@gmail.com`) and `typoSuggestion` (e.g. `john@gmial.com` suggests `john@gmail.com`).
+
+**What this does and does not tell you.** It checks syntax, whether the domain exists and has MX records, disposable domains and role addresses (`admin@`, `info@`). It does **not** confirm that the specific inbox exists: `mailbox_exists` is just a copy of `mx_records`, so `VALID` means "the domain can accept mail", not "this person's inbox is real". It also can't detect catch-all domains or predict bounces. Treat it as a filter for obvious junk, not a guarantee.
+
+`status` is the verdict (for example `VALID`, `INVALID_FORMAT`, `INVALID_DOMAIN`, `NO_MX_RECORDS`) and `score` runs from 0 to 100. An address that fails validation is still a normal `200` response, so read `status` rather than the HTTP code. `400` means the `email` was empty, and `502` means the verifier could not be reached (15 second timeout).
+
+### Validate Many Emails
+
+**POST** `/validate-emails`
+
+Checks up to 100 addresses in one request instead of 100 separate `/validate-email` calls (the verifier also groups them by domain, so it is much faster). Addresses are trimmed, and results come back in the same order you sent them.
+
+```bash
+curl -X POST http://localhost:6969/validate-emails \
+  -H "Content-Type: application/json" \
+  -d '{ "emails": ["anirban@jurisiq.in", "john@gmial.com", "bad"] }'
+```
+
+**Response (200):** `{ "results": [ ... ] }`, where each entry has the same shape as `/validate-email` (including `aliasOf` and `typoSuggestion` when present). As with the single endpoint, read each entry's `status`. `400` means an empty list, more than 100 addresses or a blank entry, and `502` means the verifier could not be reached. The same limits apply: it checks syntax, domain and MX, not whether the inbox exists.
 
 ### Schedule a Batch
 
@@ -368,21 +416,26 @@ print(response.json())
 | `APP_PASSWORD` | Required | App password for authentication |
 | `SMTP_SERVER` | `smtp.gmail.com` | SMTP server hostname |
 | `SMTP_PORT` | `587` | SMTP server port |
+| `SENDER_NAME` | `JurisIQ Support Team` | Display name shown as the sender |
 | `PORT` | `6969` | API server port |
 
 ## Error Handling
 
 The API provides detailed error messages for various scenarios:
 
-- **400 Bad Request**: Invalid email format, empty subject/body, or an empty / oversized `/send-batch` request
+- **400 Bad Request**: Invalid email format, empty subject/body, an empty / oversized `/send-batch`, `/schedule-batch` or `/validate-emails` request, or a `send_at` in the past
+- **404 / 409**: unknown scheduled job id / cancelling a job that is no longer pending
 - **500 Internal Server Error**: SMTP connection issues, authentication failures
+- **502 Bad Gateway**: the email verifier behind `/validate-email(s)` could not be reached
 
 ## Status Codes
 
 - `200` - Email sent successfully (for `/send-batch`, check each result)
+- `201` - Batch scheduled
 - `206` - Partial success in bulk email sending
 - `400` - Bad request (validation errors)
 - `500` - Internal server error (SMTP issues)
+- `502` - Email verifier unreachable
 
 ## Future Enhancements
 
@@ -390,6 +443,7 @@ The API provides detailed error messages for various scenarios:
 - [x] Per-recipient batch sending
 - [x] Sent log (record only, no duplicate skipping)
 - [x] Email scheduling (one-off, no recurring jobs)
+- [x] Email validation (single and batch, via an external verifier)
 - [ ] Delivery tracking
 - [ ] Rate limiting
 - [ ] Authentication/API keys
