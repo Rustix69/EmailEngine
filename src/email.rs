@@ -121,10 +121,7 @@ const SEND_GAP: Duration = Duration::from_millis(1500);
 /// One line per successful send, from any endpoint: `address<TAB>unix time`. Old lines with just an address still work. Survives restarts and cleared browsers.
 const SENT_LOG: &str = "sent_log.txt";
 
-/// Message returned for an address that is already in the log; the frontend treats it as "done, not resent"
-pub const ALREADY_SENT: &str = "Already sent earlier, skipped";
-
-/// Only one batch runs at a time, so a double click can't send the same people twice
+/// Only one batch runs at a time, so overlapping requests don't send in parallel
 static BATCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub fn load_sent() -> HashSet<String> {
@@ -154,7 +151,6 @@ fn log_sent(address: &str) {
 /// Sends different messages one after another (each person gets their own subject and body)
 pub async fn send_batch(cfg: &Arc<Config>, messages: &[OutgoingMessage]) -> Vec<EmailResult> {
     let _guard = BATCH_LOCK.lock().await;
-    let mut already = load_sent();
     let mut results = Vec::with_capacity(messages.len());
     let mut slept = false;
 
@@ -173,14 +169,6 @@ pub async fn send_batch(cfg: &Arc<Config>, messages: &[OutgoingMessage]) -> Vec<
             results.push(failure("Subject and body cannot be empty"));
             continue;
         }
-        if already.contains(&m.to.to_lowercase()) {
-            results.push(EmailResult {
-                email: m.to.clone(),
-                success: true,
-                message: ALREADY_SENT.to_string(),
-            });
-            continue;
-        }
 
         if slept {
             tokio::time::sleep(SEND_GAP).await;
@@ -194,27 +182,18 @@ pub async fn send_batch(cfg: &Arc<Config>, messages: &[OutgoingMessage]) -> Vec<
         .await;
 
         results.push(match sent {
-            Ok(Ok(_)) => {
-                already.insert(m.to.to_lowercase());
-                EmailResult {
-                    email: m.to.clone(),
-                    success: true,
-                    message: "Email sent successfully".to_string(),
-                }
-            }
+            Ok(Ok(_)) => EmailResult {
+                email: m.to.clone(),
+                success: true,
+                message: "Email sent successfully".to_string(),
+            },
             Ok(Err(e)) => failure(&format!("Failed to send email: {}", e)),
             Err(_) => failure("Email sending timed out"),
         });
     }
 
-    let skipped = results.iter().filter(|r| r.message == ALREADY_SENT).count();
-    let successful = results.iter().filter(|r| r.success).count() - skipped;
-    println!(
-        "Batch completed: {} sent, {} skipped (already sent), {} failed",
-        successful,
-        skipped,
-        results.len() - successful - skipped
-    );
+    let successful = results.iter().filter(|r| r.success).count();
+    println!("Batch completed: {} sent, {} failed", successful, results.len() - successful);
 
     results
 }
