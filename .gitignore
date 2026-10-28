@@ -3,3 +3,4 @@
 .env.local
 
 sent_log.txt
+scheduled_jobs.json
