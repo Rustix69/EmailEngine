@@ -8,7 +8,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Personalised Batches**: Send a different subject and body to each recipient in one call
--  **Duplicate Protection**: A persistent sent log guarantees nobody is emailed twice
+-  **Sent Log**: Every successful send is recorded, and you can email the same person again whenever you like
 -  **Configurable**: Environment-based configuration
 -  **Fast**: Built with Rust and Axum for high performance
 -  **Validation**: Email format and content validation
@@ -164,7 +164,7 @@ curl http://localhost:6969/
 
 **POST** `/send-batch`
 
-**Why it exists:** `/send-bulk-email` sends the *same* subject and body to everyone. When every recipient needs their own message (their name, their company), you would have to make one `/send-email` call per person and handle pacing and retries yourself. `/send-batch` takes the whole list in one request, sends the messages one after another with a short pause between them (so the SMTP provider doesn't flag a burst of connections), and skips anyone already in the sent log, so a retry or a double click can't email the same person again.
+**Why it exists:** `/send-bulk-email` sends the *same* subject and body to everyone. When every recipient needs their own message (their name, their company), you would have to make one `/send-email` call per person and handle pacing and retries yourself. `/send-batch` takes the whole list in one request, sends the messages one after another with a short pause between them (so the SMTP provider doesn't flag a burst of connections).
 
 **Request Body:**
 ```json
@@ -200,20 +200,20 @@ curl http://localhost:6969/
   "failed": 0,
   "results": [
     { "email": "alice@example.com", "success": true, "message": "Email sent successfully" },
-    { "email": "bob@example.com", "success": true, "message": "Already sent earlier, skipped" }
+    { "email": "bob@example.com", "success": true, "message": "Email sent successfully" }
   ]
 }
 ```
 
-An address that is already in the sent log is **not** sent again. It comes back as `success: true` with the message `Already sent earlier, skipped`, so a client can treat it as done. Invalid addresses and empty subjects or bodies come back as `success: false`. A request with no messages, or more than 50, returns `400`.
+Invalid addresses and empty subjects or bodies come back as `success: false`. A request with no messages, or more than 50, returns `400`. Addresses already in the sent log are sent again like any other.
 
-Only one batch runs at a time. A second request waits for the first to finish, which is what stops two overlapping requests from sending the same address twice.
+Only one batch runs at a time. A second request waits for the first to finish.
 
 ### Sent Log
 
 **GET** `/sent`
 
-**Why it exists:** the sent log lives on the server, so it is the one place that remembers who has been emailed, even if a client restarts or clears its own storage. This endpoint lets a client read that list (for example to hide people already contacted before it builds a batch). It is read-only and sends nothing.
+**Why it exists:** the sent log lives on the server, so it remembers who has been emailed even if a client restarts or clears its own storage. This endpoint lets a client read that list (for example to show who was already contacted). It is read-only and sends nothing.
 
 ```bash
 curl http://localhost:6969/sent
@@ -228,10 +228,10 @@ curl http://localhost:6969/sent
 
 **How the log works:**
 - The server appends one line to `sent_log.txt` (next to where you run it) after each successful send, from **any** endpoint (`/send-email`, `/send-bulk-email` and `/send-batch`): `address<TAB>unix-time`. So the log is the complete list of everyone the server has emailed.
-- Only the first word of each line is read, so you can add an address by hand (optionally followed by any note) to stop it ever being emailed. Addresses are compared in lowercase.
-- Failed sends are not logged, so they can be retried.
-- Only `/send-batch` *skips* addresses that are in the log. `/send-email` and `/send-bulk-email` always send what you ask (so you can still email someone again on purpose), but they are recorded too, and a later `/send-batch` will then skip that person.
-- The file lists people you emailed, so it is git-ignored. Back it up if you care about it; deleting it removes the protection.
+- Only the first word of each line is read. Addresses are stored in lowercase.
+- Failed sends are not logged.
+- The log is a record only. No endpoint skips an address because it is in the log, so you can email anyone again.
+- The file lists people you emailed, so it is git-ignored. Back it up if you want to keep the history.
 
 ## Testing Examples
 
@@ -276,7 +276,7 @@ curl -X POST http://localhost:6969/send-batch \
   }'
 ```
 
-Run it twice and the second response says `Already sent earlier, skipped` for both, without sending anything.
+Run it twice and both people get the email twice.
 
 ### HTML Email
 
@@ -354,7 +354,7 @@ The API provides detailed error messages for various scenarios:
 
 - [x] Bulk email sending
 - [x] Per-recipient batch sending
-- [x] Duplicate protection with a sent log
+- [x] Sent log (record only, no duplicate skipping)
 - [ ] Email scheduling
 - [ ] Delivery tracking
 - [ ] Rate limiting
