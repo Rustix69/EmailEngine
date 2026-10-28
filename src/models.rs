@@ -105,3 +105,13 @@ pub struct ValidateResponse {
     #[serde(rename = "typoSuggestion", default, skip_serializing_if = "Option::is_none")]
     pub typo_suggestion: Option<String>,
 }
+
+#[derive(Deserialize)]
+pub struct ValidateBatchRequest {
+    pub emails: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ValidateBatchResponse {
+    pub results: Vec<ValidateResponse>,
+}

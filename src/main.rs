@@ -41,6 +41,7 @@ async fn main() -> Result<()> {
         .route("/send-batch", post(handlers::send_batch_handler))
         .route("/sent", get(handlers::sent_handler))
         .route("/validate-email", get(handlers::validate_email_handler))
+        .route("/validate-emails", post(handlers::validate_emails_handler))
         .route("/schedule-batch", post(handlers::schedule_batch_handler))
         .route("/scheduled", get(handlers::list_scheduled_handler))
         .route("/scheduled/:id", get(handlers::get_scheduled_handler).delete(handlers::cancel_scheduled_handler))
@@ -55,6 +56,7 @@ async fn main() -> Result<()> {
     println!("📨 Send POST requests to /send-batch for personalised emails");
     println!("⏰ POST /schedule-batch sends a batch at a set time; see GET /scheduled");
     println!("🔎 GET /validate-email?email=... checks whether an address is deliverable");
+    println!("🔎 POST /validate-emails checks up to 100 addresses at once");
     println!("📜 GET /sent lists everyone emailed so far");
     println!("💊 Health check available at /");
 

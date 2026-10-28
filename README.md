@@ -244,6 +244,20 @@ Optional fields appear when relevant: `aliasOf` (the canonical address, e.g. `us
 
 `status` is the verdict (for example `VALID`, `INVALID_FORMAT`, `INVALID_DOMAIN`, `NO_MX_RECORDS`) and `score` runs from 0 to 100. An address that fails validation is still a normal `200` response, so read `status` rather than the HTTP code. `400` means the `email` was empty, and `502` means the verifier could not be reached (15 second timeout).
 
+### Validate Many Emails
+
+**POST** `/validate-emails`
+
+Checks up to 100 addresses in one request instead of 100 separate `/validate-email` calls (the verifier also groups them by domain, so it is much faster). Addresses are trimmed, and results come back in the same order you sent them.
+
+```bash
+curl -X POST http://localhost:6969/validate-emails \
+  -H "Content-Type: application/json" \
+  -d '{ "emails": ["anirban@jurisiq.in", "john@gmial.com", "bad"] }'
+```
+
+**Response (200):** `{ "results": [ ... ] }`, where each entry has the same shape as `/validate-email` (including `aliasOf` and `typoSuggestion` when present). As with the single endpoint, read each entry's `status`. `400` means an empty list, more than 100 addresses or a blank entry, and `502` means the verifier could not be reached. The same limits apply: it checks syntax, domain and MX, not whether the inbox exists.
+
 ### Schedule a Batch
 
 **POST** `/schedule-batch`
