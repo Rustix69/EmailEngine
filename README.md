@@ -215,7 +215,7 @@ Only one batch runs at a time. A second request waits for the first to finish.
 
 **GET** `/validate-email?email=<address>`
 
-A thin wrapper around the public [rapid-email-verifier](https://rapid-email-verifier.fly.dev) service. It checks an address without sending anything, so you can clean a list before a campaign. The address is sent to that third-party service.
+A thin wrapper around the public [rapid-email-verifier](https://rapid-email-verifier.fly.dev) service. It checks an address without sending anything, so you can clean a list before a campaign. The address is sent to that third-party service, which says it processes addresses in memory and does not store them.
 
 ```bash
 curl "http://localhost:6969/validate-email?email=anirban@jurisiq.in"
@@ -237,6 +237,10 @@ curl "http://localhost:6969/validate-email?email=anirban@jurisiq.in"
   "status": "VALID"
 }
 ```
+
+Optional fields appear when relevant: `aliasOf` (the canonical address, e.g. `user.name+tag@gmail.com` becomes `username@gmail.com`) and `typoSuggestion` (e.g. `john@gmial.com` suggests `john@gmail.com`).
+
+**What this does and does not tell you.** It checks syntax, whether the domain exists and has MX records, disposable domains and role addresses (`admin@`, `info@`). It does **not** confirm that the specific inbox exists: `mailbox_exists` is just a copy of `mx_records`, so `VALID` means "the domain can accept mail", not "this person's inbox is real". It also can't detect catch-all domains or predict bounces. Treat it as a filter for obvious junk, not a guarantee.
 
 `status` is the verdict (for example `VALID`, `INVALID_FORMAT`, `INVALID_DOMAIN`, `NO_MX_RECORDS`) and `score` runs from 0 to 100. An address that fails validation is still a normal `200` response, so read `status` rather than the HTTP code. `400` means the `email` was empty, and `502` means the verifier could not be reached (15 second timeout).
 

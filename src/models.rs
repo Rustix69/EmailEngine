@@ -98,4 +98,10 @@ pub struct ValidateResponse {
     pub validations: EmailChecks,
     pub score: u32,
     pub status: String,
+    /// Canonical address when this is an alias (e.g. `user.name+tag@gmail.com` -> `username@gmail.com`)
+    #[serde(rename = "aliasOf", default, skip_serializing_if = "Option::is_none")]
+    pub alias_of: Option<String>,
+    /// Likely intended address when the domain looks mistyped (e.g. `gmial.com`)
+    #[serde(rename = "typoSuggestion", default, skip_serializing_if = "Option::is_none")]
+    pub typo_suggestion: Option<String>,
 }
