@@ -1,14 +1,20 @@
 use crate::config::Config;
-use crate::api::{is_valid_email, EmailResult, OutgoingMessage};
+use crate::models::{EmailResult, OutgoingMessage};
+use crate::sent_log::log_sent;
+use crate::validation::is_valid_email;
 use anyhow::Result;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use lettre::message::Mailbox;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use tokio::time::{timeout, Duration};
-use std::collections::HashSet;
-use std::io::Write;
 use std::sync::Arc;
+
+/// Gap between messages so Gmail doesn't flag a burst of connections
+const SEND_GAP: Duration = Duration::from_millis(1500);
+
+/// Only one batch runs at a time, so overlapping requests don't send in parallel
+static BATCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub async fn send_email(cfg: &Config, to: &str, subject: &str, body: &str, html: Option<&str>) -> Result<()> {
     let sender = Mailbox::new(Some(cfg.sender_name.clone()), cfg.email.parse()?);
@@ -112,40 +118,6 @@ pub async fn send_bulk_emails(
     println!("Bulk email sending completed: {} successful, {} failed", successful, failed);
     
     results
-}
-
-
-/// Gap between messages so Gmail doesn't flag a burst of connections
-const SEND_GAP: Duration = Duration::from_millis(1500);
-
-/// One line per successful send, from any endpoint: `address<TAB>unix time`. Old lines with just an address still work. Survives restarts and cleared browsers.
-const SENT_LOG: &str = "sent_log.txt";
-
-/// Only one batch runs at a time, so overlapping requests don't send in parallel
-static BATCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-pub fn load_sent() -> HashSet<String> {
-    // First word of each line is the address; anything after it (timestamp, note) is ignored
-    std::fs::read_to_string(SENT_LOG)
-        .map(|t| t.lines().filter_map(|l| l.split_whitespace().next()).map(|a| a.to_lowercase()).collect())
-        .unwrap_or_default()
-}
-
-fn log_sent(address: &str) {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    // One write per line, so concurrent sends (/send-bulk-email) can't interleave
-    let line = format!("{}\t{}\n", address.to_lowercase(), now);
-    let written = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(SENT_LOG)
-        .and_then(|mut f| f.write_all(line.as_bytes()));
-    if let Err(e) = written {
-        eprintln!("Could not record {} in {}: {}", address, SENT_LOG, e);
-    }
 }
 
 /// Sends different messages one after another (each person gets their own subject and body)
