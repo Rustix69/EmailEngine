@@ -16,7 +16,7 @@ pub struct BulkEmailRequest {
     pub html: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct OutgoingMessage {
     pub to: String,
     pub subject: String,
@@ -29,7 +29,7 @@ pub struct BatchEmailRequest {
     pub messages: Vec<OutgoingMessage>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct EmailResult {
     pub email: String,
     pub success: bool,
@@ -61,4 +61,17 @@ pub struct HealthResponse {
 #[derive(Serialize)]
 pub struct SentResponse {
     pub addresses: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ScheduleBatchRequest {
+    /// RFC 3339 with an offset, e.g. `2026-11-02T10:30:00+05:30`
+    pub send_at: chrono::DateTime<chrono::Utc>,
+    pub messages: Vec<OutgoingMessage>,
+}
+
+#[derive(Serialize)]
+pub struct ApiError {
+    pub success: bool,
+    pub message: String,
 }

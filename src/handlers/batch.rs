@@ -1,9 +1,6 @@
-use crate::{config::Config, mailer, models::{BatchEmailRequest, BulkEmailResponse}};
+use crate::{config::Config, mailer, models::{BatchEmailRequest, BulkEmailResponse}, validation::MAX_BATCH};
 use axum::{extract::State, http::StatusCode, response::Json};
 use std::sync::Arc;
-
-/// Most messages one /send-batch call accepts
-const MAX_BATCH: usize = 50;
 
 pub async fn send_batch_handler(
     State(config): State<Arc<Config>>,

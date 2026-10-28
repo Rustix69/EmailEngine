@@ -8,6 +8,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Personalised Batches**: Send a different subject and body to each recipient in one call
+-  **Scheduled Batches**: Queue a personalised batch to go out at a set time
 -  **Sent Log**: Every successful send is recorded, and you can email the same person again whenever you like
 -  **Configurable**: Environment-based configuration
 -  **Fast**: Built with Rust and Axum for high performance
@@ -209,6 +210,39 @@ Invalid addresses and empty subjects or bodies come back as `success: false`. A 
 
 Only one batch runs at a time. A second request waits for the first to finish.
 
+### Schedule a Batch
+
+**POST** `/schedule-batch`
+
+Queues a personalised batch (same messages as `/send-batch`) to be sent at a later time. A background task checks every 10 seconds and sends each job when its time comes, using the same pacing, timeout and sent logging as `/send-batch`.
+
+```json
+{
+  "send_at": "2026-11-02T10:30:00+05:30",
+  "messages": [
+    { "to": "alice@example.com", "subject": "Hi Alice", "body": "Hello Alice!" }
+  ]
+}
+```
+
+- `send_at` (required): RFC 3339 timestamp **with an offset** (`+05:30` for IST, `Z` for UTC). It must be in the future.
+- `messages` (required): 1 to 50 messages, validated up front, so a bad address is rejected now rather than at send time.
+
+**Response (201):** the job, with an `id` to track it.
+```json
+{ "id": "99f0cbb4-...", "send_at": "2026-11-02T05:00:00Z", "status": "pending", "total_emails": 1, "successful": null, "failed": null }
+```
+
+**GET** `/scheduled` lists all jobs. **GET** `/scheduled/{id}` shows one job in full, including per-message results once it has run. **DELETE** `/scheduled/{id}` cancels a job that is still `pending` (otherwise `409`).
+
+Job statuses: `pending`, `running`, `done`, `cancelled`, `interrupted`.
+
+**Things to know (this runs locally):**
+- Jobs are stored in `scheduled_jobs.json` (git-ignored), so they survive restarts.
+- Jobs only send while the server is running. If the server was off at the scheduled time, the job is sent right after the next start.
+- If the server stops *while* a job is sending, that job is marked `interrupted` and is **not** retried, because some people may already have the email. Check `GET /scheduled/{id}` or `sent_log.txt` and re-schedule the rest by hand.
+- Only one batch runs at a time, scheduled or not.
+
 ### Sent Log
 
 **GET** `/sent`
@@ -355,7 +389,7 @@ The API provides detailed error messages for various scenarios:
 - [x] Bulk email sending
 - [x] Per-recipient batch sending
 - [x] Sent log (record only, no duplicate skipping)
-- [ ] Email scheduling
+- [x] Email scheduling (one-off, no recurring jobs)
 - [ ] Delivery tracking
 - [ ] Rate limiting
 - [ ] Authentication/API keys
