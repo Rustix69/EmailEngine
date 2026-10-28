@@ -75,3 +75,27 @@ pub struct ApiError {
     pub success: bool,
     pub message: String,
 }
+
+#[derive(Deserialize)]
+pub struct ValidateQuery {
+    pub email: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EmailChecks {
+    pub syntax: bool,
+    pub domain_exists: bool,
+    pub mx_records: bool,
+    pub mailbox_exists: bool,
+    pub is_disposable: bool,
+    pub is_role_based: bool,
+}
+
+/// Same shape as the upstream verifier, so callers see one stable format even if we change provider later
+#[derive(Serialize, Deserialize)]
+pub struct ValidateResponse {
+    pub email: String,
+    pub validations: EmailChecks,
+    pub score: u32,
+    pub status: String,
+}

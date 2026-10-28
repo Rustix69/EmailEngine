@@ -8,6 +8,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Personalised Batches**: Send a different subject and body to each recipient in one call
+-  **Email Validation**: Check whether an address is deliverable before you send
 -  **Scheduled Batches**: Queue a personalised batch to go out at a set time
 -  **Sent Log**: Every successful send is recorded, and you can email the same person again whenever you like
 -  **Configurable**: Environment-based configuration
@@ -209,6 +210,35 @@ curl http://localhost:6969/
 Invalid addresses and empty subjects or bodies come back as `success: false`. A request with no messages, or more than 50, returns `400`. Addresses already in the sent log are sent again like any other.
 
 Only one batch runs at a time. A second request waits for the first to finish.
+
+### Validate an Email
+
+**GET** `/validate-email?email=<address>`
+
+A thin wrapper around the public [rapid-email-verifier](https://rapid-email-verifier.fly.dev) service. It checks an address without sending anything, so you can clean a list before a campaign. The address is sent to that third-party service.
+
+```bash
+curl "http://localhost:6969/validate-email?email=anirban@jurisiq.in"
+```
+
+**Response (200):**
+```json
+{
+  "email": "anirban@jurisiq.in",
+  "validations": {
+    "syntax": true,
+    "domain_exists": true,
+    "mx_records": true,
+    "mailbox_exists": true,
+    "is_disposable": false,
+    "is_role_based": false
+  },
+  "score": 100,
+  "status": "VALID"
+}
+```
+
+`status` is the verdict (for example `VALID`, `INVALID_FORMAT`, `INVALID_DOMAIN`, `NO_MX_RECORDS`) and `score` runs from 0 to 100. An address that fails validation is still a normal `200` response, so read `status` rather than the HTTP code. `400` means the `email` was empty, and `502` means the verifier could not be reached (15 second timeout).
 
 ### Schedule a Batch
 

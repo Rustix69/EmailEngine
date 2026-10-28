@@ -5,6 +5,7 @@ mod models;
 mod scheduler;
 mod sent_log;
 mod validation;
+mod verifier;
 
 use anyhow::Result;
 use dotenvy::dotenv;
@@ -39,6 +40,7 @@ async fn main() -> Result<()> {
         .route("/send-bulk-email", post(handlers::send_bulk_email_handler))
         .route("/send-batch", post(handlers::send_batch_handler))
         .route("/sent", get(handlers::sent_handler))
+        .route("/validate-email", get(handlers::validate_email_handler))
         .route("/schedule-batch", post(handlers::schedule_batch_handler))
         .route("/scheduled", get(handlers::list_scheduled_handler))
         .route("/scheduled/:id", get(handlers::get_scheduled_handler).delete(handlers::cancel_scheduled_handler))
@@ -52,6 +54,7 @@ async fn main() -> Result<()> {
     println!("📬 Send POST requests to /send-bulk-email for multiple emails");
     println!("📨 Send POST requests to /send-batch for personalised emails");
     println!("⏰ POST /schedule-batch sends a batch at a set time; see GET /scheduled");
+    println!("🔎 GET /validate-email?email=... checks whether an address is deliverable");
     println!("📜 GET /sent lists everyone emailed so far");
     println!("💊 Health check available at /");
 
