@@ -8,7 +8,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 -  **Multi-format Support**: Plain text and HTML emails
 -  **Bulk Email Sending**: Send emails to multiple recipients simultaneously
 -  **Personalised Batches**: Send a different subject and body to each recipient in one call
--  **Email Validation**: Check whether an address is deliverable before you send
+-  **Email Validation**: Check one address or up to 100 at once (syntax, domain, MX, disposable, role-based, typo hints) before you send
 -  **Scheduled Batches**: Queue a personalised batch to go out at a set time
 -  **Sent Log**: Every successful send is recorded, and you can email the same person again whenever you like
 -  **Configurable**: Environment-based configuration
@@ -23,7 +23,7 @@ A fast, reliable REST API for sending emails built with Rust and Axum. Send emai
 
 ```bash
 git clone <your-repo>
-cd rust-mailer
+cd EmailEngine
 cargo build --release
 ```
 
@@ -58,7 +58,7 @@ For Gmail, you'll need an **App Password**:
 cargo run
 ```
 
-The server will start on `http://0.0.0.0:6969` (or your configured PORT).
+The server will start on `http://localhost:6969` (or your configured PORT).
 
 ## API Documentation
 
@@ -416,21 +416,26 @@ print(response.json())
 | `APP_PASSWORD` | Required | App password for authentication |
 | `SMTP_SERVER` | `smtp.gmail.com` | SMTP server hostname |
 | `SMTP_PORT` | `587` | SMTP server port |
+| `SENDER_NAME` | `JurisIQ Support Team` | Display name shown as the sender |
 | `PORT` | `6969` | API server port |
 
 ## Error Handling
 
 The API provides detailed error messages for various scenarios:
 
-- **400 Bad Request**: Invalid email format, empty subject/body, or an empty / oversized `/send-batch` request
+- **400 Bad Request**: Invalid email format, empty subject/body, an empty / oversized `/send-batch`, `/schedule-batch` or `/validate-emails` request, or a `send_at` in the past
+- **404 / 409**: unknown scheduled job id / cancelling a job that is no longer pending
 - **500 Internal Server Error**: SMTP connection issues, authentication failures
+- **502 Bad Gateway**: the email verifier behind `/validate-email(s)` could not be reached
 
 ## Status Codes
 
 - `200` - Email sent successfully (for `/send-batch`, check each result)
+- `201` - Batch scheduled
 - `206` - Partial success in bulk email sending
 - `400` - Bad request (validation errors)
 - `500` - Internal server error (SMTP issues)
+- `502` - Email verifier unreachable
 
 ## Future Enhancements
 
@@ -438,6 +443,7 @@ The API provides detailed error messages for various scenarios:
 - [x] Per-recipient batch sending
 - [x] Sent log (record only, no duplicate skipping)
 - [x] Email scheduling (one-off, no recurring jobs)
+- [x] Email validation (single and batch, via an external verifier)
 - [ ] Delivery tracking
 - [ ] Rate limiting
 - [ ] Authentication/API keys
